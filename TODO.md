@@ -49,7 +49,7 @@ Category Bomb Arena
 
 | Route | Description |
 |---|---|
-| `/` | Landing / lobby |
+| `/` | Dev dashboard (backend + WS + wallet + contract probe) |
 | `/game/[id]` | Active game room |
 | `/predict/[id]` | Pre-game prediction phase |
 | `/leaderboard` | Global leaderboard |
@@ -188,6 +188,13 @@ No RPC calls needed for leaderboard rendering. Next.js page hits backend API, ba
 
 ## Active Tasks
 
+### Frontend — Dev Dashboard (`frontend/app/page.tsx`)
+
+- [x] `frontend/app/page.tsx` — dev dashboard created (backend REST, WebSocket, wallet, contract probe)
+- [ ] Replace `/` dev dashboard with production lobby UI once game mechanics are wired
+- [ ] Add `ConnectButton` and `usePrediction` hook integration to lobby UI
+- [ ] Wire `useClaimReward` hook to game results screen
+
 ### Web3 — Smart Contracts
 
 - [ ] Initialize Foundry project under `/contracts`
@@ -245,6 +252,7 @@ No RPC calls needed for leaderboard rendering. Next.js page hits backend API, ba
 
 | Feature | Status |
 |---|---|
+| Frontend dev dashboard (`/`) | Implemented |
 | `PredictionPool.sol` deployed on Monad Testnet | Not started |
 | wagmi configured for Monad Testnet | Not started |
 | Prediction placement (onchain) | Not started |
@@ -261,7 +269,7 @@ No RPC calls needed for leaderboard rendering. Next.js page hits backend API, ba
 
 ## Completed Tasks
 
-*(none yet — project initialized)*
+- **2026-02-22** — `frontend/app/page.tsx` dev dashboard created: backend REST panel (GET /health, POST+GET /api/matches, GET /api/matches/:id), WebSocket panel (connect, JOIN_MATCH, SUBMIT_PREDICTION, SUBMIT_ANSWER, live message log), wallet panel (MetaMask connect, Monad Testnet switch, sign test message), contract probe panel (eth_getCode deployment check, eth_call read, eth_sendTransaction write with tx hash link).
 
 ---
 
