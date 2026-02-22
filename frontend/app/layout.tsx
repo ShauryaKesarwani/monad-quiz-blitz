@@ -5,7 +5,7 @@ import "./globals.css";
 const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Category Bomb Arena",
+  title: "Blitz Quiz Arena",
   description: "A fast-paced multiplayer elimination word game",
 };
 

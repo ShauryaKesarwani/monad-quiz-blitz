@@ -35,6 +35,14 @@ export default function MatchPage() {
     const [myPlayerId, setMyPlayerId] = useState<string>("p1"); // Mocking that "I" am Atokuwu
     const [answerInput, setAnswerInput] = useState("");
 
+    const [savedName, setSavedName] = useState("Player");
+    const [savedStake, setSavedStake] = useState("1");
+
+    useEffect(() => {
+        setSavedName(localStorage.getItem("monadArenaName") || "Player");
+        setSavedStake(localStorage.getItem("monadArenaStake") || "1");
+    }, []);
+
     const ws = useRef<WebSocket | null>(null);
 
     useEffect(() => {
@@ -43,6 +51,7 @@ export default function MatchPage() {
             ws.current = new WebSocket("ws://localhost:3001/ws");
 
             ws.current.onopen = () => {
+                const name = localStorage.getItem("monadArenaName") || "Player";
                 console.log("WS Connected for match", matchId);
                 // Send JOIN_MATCH event
                 ws.current?.send(JSON.stringify({
@@ -52,7 +61,7 @@ export default function MatchPage() {
                         player: {
                             id: myPlayerId,
                             address: "0xMockAddress",
-                            username: "Atokuwu"
+                            username: name
                         }
                     }
                 }));
@@ -96,11 +105,37 @@ export default function MatchPage() {
     useEffect(() => {
         if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
             const interval = setInterval(() => {
-                setBombTimer((t) => (t > 0 ? Number((t - 0.1).toFixed(1)) : 0));
+                setBombTimer((t) => {
+                    const nextTime = Number((t - 0.1).toFixed(1));
+                    if (nextTime <= 0) {
+                        // Time's up! Eliminate current player
+                        setPlayers(prev => {
+                            const updated = prev.map(p =>
+                                p.id === currentPlayerId ? { ...p, status: "ELIMINATED" as const } : p
+                            );
+
+                            // Pass turn to next alive player clockwise
+                            const currentIndex = updated.findIndex(p => p.id === currentPlayerId);
+                            let nextIndex = (currentIndex + 1) % updated.length;
+                            while (updated[nextIndex].status === "ELIMINATED" && nextIndex !== currentIndex) {
+                                nextIndex = (nextIndex + 1) % updated.length;
+                            }
+                            setCurrentPlayerId(updated[nextIndex].id);
+                            return updated;
+                        });
+
+                        // Change category mock
+                        const cats = ["Crypto tokens", "Animals that swim", "Start with letter A"];
+                        setCategory(cats[Math.floor(Math.random() * cats.length)]);
+
+                        return 8; // Reset timer
+                    }
+                    return nextTime;
+                });
             }, 100);
             return () => clearInterval(interval);
         }
-    }, []);
+    }, [currentPlayerId]);
 
     const handleSubmitAnswer = (e: React.FormEvent) => {
         e.preventDefault();
@@ -119,12 +154,46 @@ export default function MatchPage() {
             // Mock progression
             console.log("Submitted (Mock):", answerInput);
             setBombTimer(8);
-            setCurrentPlayerId("p3"); // Pass turn
+
+            // Pass turn clockwise
+            const currentIndex = players.findIndex(p => p.id === currentPlayerId);
+            let nextIndex = (currentIndex + 1) % players.length;
+            while (players[nextIndex].status === "ELIMINATED" && nextIndex !== currentIndex) {
+                nextIndex = (nextIndex + 1) % players.length;
+            }
+            setCurrentPlayerId(players[nextIndex].id);
         }
         setAnswerInput("");
     };
 
     const isMyTurn = myPlayerId === currentPlayerId;
+
+    const handlePredict = (type: "winner" | "first_eliminated") => {
+        if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
+            console.log("Mock prediction submitted:", type);
+            // In mock mode, we immediately drop them into Normal
+            setPhase("NORMAL");
+            return;
+        }
+
+        // Let's just predict a random opponent for now depending on type
+        // In a real game you'd select the player from a dropdown
+        const opponent = players.find(p => p.id !== myPlayerId) || players[0];
+
+        ws.current.send(JSON.stringify({
+            event: "SUBMIT_PREDICTION",
+            payload: {
+                matchId,
+                prediction: {
+                    playerId: myPlayerId,
+                    predictedWinner: type === "winner" ? opponent.id : "none",
+                    predictedFirstElimination: type === "first_eliminated" ? opponent.id : "none"
+                }
+            }
+        }));
+        // Note: Actual transition from PREDICTION -> NORMAL is handled by the server (MATCH_UPDATED)
+        console.log("Prediction sent!", type);
+    };
 
     return (
         <div className="flex-1 flex flex-col min-h-screen">
@@ -147,17 +216,21 @@ export default function MatchPage() {
                 )}
             </div>
 
-            <main className="flex-1 flex flex-col items-center p-4 relative overflow-hidden bg-neo-blue pb-32">
+            <main className="flex-1 flex flex-col items-center p-4 relative overflow-hidden bg-neo-purple bg-neo-dots pb-32">
 
                 {phase === "PREDICTION" ? (
                     <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center p-6">
                         <div className="bg-neo-white border-neo shadow-[var(--shadow-neo-lg)] p-8 max-w-xl w-full text-center">
                             <h2 className="text-4xl font-black mb-4">Prediction Phase</h2>
-                            <p className="text-xl font-bold mb-8">Place your stakes on Monad Testnet before the match starts!</p>
+                            <p className="text-xl font-bold mb-8">Place your stakes on Monad Testnet before the match starts! (Stake: {savedStake} MON)</p>
                             {/* Mock Prediction Buttons */}
                             <div className="space-y-4">
-                                <Button className="w-full" size="lg" variant="primary">Predict Winner (1 MON)</Button>
-                                <Button className="w-full" size="lg" variant="danger">Predict First Eliminated (1 MON)</Button>
+                                <Button className="w-full" size="lg" variant="primary" onClick={() => handlePredict("winner")}>
+                                    Predict Winner ({savedStake} MON)
+                                </Button>
+                                <Button className="w-full" size="lg" variant="danger" onClick={() => handlePredict("first_eliminated")}>
+                                    Predict First Eliminated ({savedStake} MON)
+                                </Button>
                             </div>
                             <Button className="mt-8 font-bold" variant="outline" onClick={() => setPhase("NORMAL")}>
                                 [DEV] Skip Prediction Phase

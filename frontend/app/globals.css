@@ -32,6 +32,12 @@
 }
 
 @layer utilities {
+  .bg-neo-dots {
+    background-image: radial-gradient(var(--color-neo-black) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: -16px -16px;
+  }
+
   .border-neo {
     border: 3px solid var(--color-neo-black);
   }

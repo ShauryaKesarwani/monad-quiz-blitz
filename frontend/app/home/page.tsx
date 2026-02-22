@@ -14,8 +14,19 @@ export default function HomePage() {
     const [isCreating, setIsCreating] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
 
+    // Modal state
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [displayName, setDisplayName] = useState("");
+    const [stakeValue, setStakeValue] = useState("1"); // Default 1 MON
+
     const handleCreateRoom = async () => {
+        if (!displayName.trim() || !stakeValue.trim()) return;
+
         setIsCreating(true);
+        // Save to local storage for the next page to use
+        localStorage.setItem("monadArenaName", displayName.trim());
+        localStorage.setItem("monadArenaStake", stakeValue.trim());
+
         try {
             const res = await fetch("http://localhost:3001/api/matches", {
                 method: "POST",
@@ -38,13 +49,16 @@ export default function HomePage() {
     const handleJoinRoom = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!roomCode.trim()) return;
+
+        // Let's ask them for a name too if they don't have one? For simplicity assume they set it somewhere, or we just prompt
+        // A minimal approach is just routing. We can use localStorage name if it exists.
+
         setIsJoining(true);
-        // Usually we would check if match exists, but we'll just navigate
         router.push(`/match/${roomCode.trim()}`);
     };
 
     return (
-        <div className="flex-1 flex flex-col items-center w-full min-h-screen">
+        <div className="flex-1 flex flex-col items-center w-full min-h-screen bg-neo-purple bg-neo-dots">
             <TopBar />
 
             <main className="flex-1 flex flex-col items-center justify-center p-6 w-full max-w-4xl mx-auto space-y-12">
@@ -76,7 +90,7 @@ export default function HomePage() {
                                 size="lg"
                                 variant="primary"
                                 className="w-full text-2xl py-8"
-                                onClick={handleCreateRoom}
+                                onClick={() => setShowCreateModal(true)}
                                 disabled={isCreating}
                             >
                                 {isCreating ? "Creating..." : "Create New Arena"}
@@ -112,13 +126,68 @@ export default function HomePage() {
                                     className="w-full text-2xl py-8"
                                     disabled={!roomCode.trim() || isJoining}
                                 >
-                                    {isJoining ? "Joining..." : "Enter Arena"}
+                                    {isJoining ? "Joining..." : "Join Online Servers"}
                                 </Button>
                             </form>
                         </CardContent>
                     </Card>
                 </div>
             </main>
+
+            {/* Create Room Modal */}
+            {showCreateModal && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 backdrop-blur-sm">
+                    <Card className="max-w-md w-full border-[4px] border-black shadow-[var(--shadow-neo-lg)] bg-neo-white">
+                        <CardHeader className="border-b-[4px] border-black bg-neo-yellow">
+                            <CardTitle className="text-3xl font-black uppercase">Room Settings</CardTitle>
+                            <CardDescription className="text-black font-bold text-lg">
+                                Set your identity and stakes for this match.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6 space-y-6">
+                            <div className="space-y-2">
+                                <label className="font-bold text-lg">Display Name</label>
+                                <Input
+                                    placeholder="Enter your nickname..."
+                                    value={displayName}
+                                    onChange={(e) => setDisplayName(e.target.value)}
+                                    className="text-xl h-14 font-bold border-[3px]"
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="font-bold text-lg">Stake Amount (MON)</label>
+                                <Input
+                                    type="number"
+                                    placeholder="1.0"
+                                    min="0.1"
+                                    step="0.1"
+                                    value={stakeValue}
+                                    onChange={(e) => setStakeValue(e.target.value)}
+                                    className="text-xl h-14 font-bold border-[3px]"
+                                />
+                            </div>
+                            <div className="flex gap-4 pt-4">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 text-xl py-6"
+                                    onClick={() => setShowCreateModal(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    className="flex-1 text-xl py-6"
+                                    onClick={handleCreateRoom}
+                                    disabled={!displayName.trim() || !stakeValue.trim() || isCreating}
+                                >
+                                    Confirm
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
         </div>
     );
 }

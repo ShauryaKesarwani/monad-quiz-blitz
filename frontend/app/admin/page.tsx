@@ -1179,7 +1179,7 @@ function Header() {
   return (
     <div className="border-b border-zinc-800 pb-4 mb-4">
       <h1 className="text-lg font-bold text-zinc-100 tracking-tight">
-        Category Bomb Arena{" "}
+        Blitz Quiz Arena{" "}
         <span className="text-zinc-500 font-normal text-sm">— dev dashboard</span>
       </h1>
       <p className="text-xs text-zinc-600 mt-0.5">

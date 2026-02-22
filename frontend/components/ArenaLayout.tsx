@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Player, PlayerStatus } from "@/shared/types/game" // I'll mock these if the import absolute path is an issue
 import { cn } from "@/lib/utils";
 
 // Make a local version for the UI to prevent build errors if the shared folder isn't configured in tsconfig properly.
@@ -32,9 +31,9 @@ export function ArenaLayout({ players, currentPlayerId, bombTimer, centerText, c
             <div className="absolute z-10 flex flex-col items-center justify-center text-center">
                 <div className={cn(
                     "w-32 h-32 sm:w-48 sm:h-48 rounded-full border-[6px] border-black bg-neo-black text-neo-yellow flex items-center justify-center shadow-[var(--shadow-neo-lg)] transition-all",
-                    bombTimer && bombTimer < 4 && "animate-pulse bg-neo-red text-white"
+                    bombTimer && bombTimer < 4 && "animate-pulse bg-neo-red text-white scale-110"
                 )}>
-                    <span className="text-5xl font-black">{bombTimer ? bombTimer.toFixed(1) : "💣"}</span>
+                    <span className="text-6xl sm:text-7xl font-black">{bombTimer === 0 ? "💥" : "💣"}</span>
                 </div>
                 {category && (
                     <div className="mt-6 bg-neo-white border-neo px-6 py-3 shadow-[var(--shadow-neo)]">
@@ -65,7 +64,7 @@ export function ArenaLayout({ players, currentPlayerId, bombTimer, centerText, c
                         className={cn(
                             "absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300",
                             isCurrent && "scale-110 z-20",
-                            isEliminated && "opacity-50 grayscale"
+                            isEliminated && "opacity-30 grayscale saturate-0 scale-90"
                         )}
                         style={{ left, top }}
                     >
