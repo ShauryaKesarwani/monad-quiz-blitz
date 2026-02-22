@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { ArenaLayout, UIPlayer } from "@/components/ArenaLayout";
 import { Input } from "@/components/ui/input";
@@ -148,6 +149,17 @@ export default function MatchPage() {
     return (
         <div className="flex-1 flex flex-col min-h-screen">
             <TopBar />
+
+            {/* Back Button Bar */}
+            <div className="w-full bg-neo-white border-b-4 border-black px-4 py-2">
+                <button
+                    onClick={() => router.push("/home")}
+                    className="flex items-center gap-2 font-bold hover:underline transition-all"
+                >
+                    <ArrowLeft size={20} />
+                    Back to Arena Menu
+                </button>
+            </div>
 
             {/* Game Header Area / Bans */}
             <div className="w-full flex justify-between items-center p-4 bg-neo-black text-white border-b-4 border-black">

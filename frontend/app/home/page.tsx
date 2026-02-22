@@ -19,8 +19,13 @@ export default function HomePage() {
 
     // Modal state
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showJoinModal, setShowJoinModal] = useState(false);
+
+    // Config state
     const [displayName, setDisplayName] = useState("");
     const [stakeValue, setStakeValue] = useState("1"); // Default 1 MON
+    const [isFetchingRooms, setIsFetchingRooms] = useState(false);
+    const [activeRooms, setActiveRooms] = useState<Array<{ id: string; phase: string; players?: Array<any> }>>([]);
 
     useEffect(() => {
         if (!isConnected) router.push("/");
@@ -51,13 +56,39 @@ export default function HomePage() {
         }
     };
 
+    const handleOpenJoinModal = async () => {
+        setShowJoinModal(true);
+        setIsFetchingRooms(true);
+        try {
+            const res = await fetch("http://localhost:3001/api/matches");
+            if (res.ok) {
+                const data = await res.json();
+                setActiveRooms(data.matches || []);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsFetchingRooms(false);
+        }
+    };
+
+    const handleJoinSpecificRoom = (targetMatchId: string) => {
+        // Also capture identity if they want, but let's assume they have it in local storage 
+        // or we use a default if it's purely joining over modal.
+        if (displayName.trim()) {
+            localStorage.setItem("monadArenaName", displayName.trim());
+        }
+        setIsJoining(true);
+        router.push(`/match/${targetMatchId}`);
+    };
+
     const handleJoinRoom = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!roomCode.trim()) return;
 
-        // Let's ask them for a name too if they don't have one? For simplicity assume they set it somewhere, or we just prompt
-        // A minimal approach is just routing. We can use localStorage name if it exists.
-
+        if (displayName.trim()) {
+            localStorage.setItem("monadArenaName", displayName.trim());
+        }
         setIsJoining(true);
         router.push(`/match/${roomCode.trim()}`);
     };
@@ -193,6 +224,69 @@ export default function HomePage() {
                     </Card>
                 </div>
             )}
+
+            {/* Join Room Discovery Modal */}
+            {showJoinModal && (
+                <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 backdrop-blur-sm">
+                    <Card className="max-w-xl w-full border-[4px] border-black shadow-[var(--shadow-neo-lg)] bg-neo-white max-h-[80vh] flex flex-col">
+                        <CardHeader className="border-b-[4px] border-black bg-neo-blue text-white">
+                            <CardTitle className="text-3xl font-black uppercase text-black">Online Servers</CardTitle>
+                            <CardDescription className="text-black font-bold text-lg">
+                                Select an active match to join.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-6 overflow-y-auto space-y-4 flex-1">
+                            {/* Optional quick identity setup */}
+                            <div className="space-y-1 mb-6 border-b-2 border-black pb-4">
+                                <label className="font-bold text-md">Set Identity Before Joining:</label>
+                                <Input
+                                    placeholder="Enter nickname..."
+                                    value={displayName}
+                                    onChange={(e) => setDisplayName(e.target.value)}
+                                    className="text-lg h-12 font-bold border-[2px]"
+                                />
+                            </div>
+
+                            {isFetchingRooms ? (
+                                <p className="text-center font-bold text-xl py-8">Searching for rooms...</p>
+                            ) : activeRooms.length === 0 ? (
+                                <p className="text-center font-bold text-xl py-8 text-gray-600">No active rooms found. Try creating one!</p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {activeRooms.map((room) => (
+                                        <div key={room.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-neo-white border-[3px] border-black shadow-[var(--shadow-neo)] hover:translate-y-[-2px] hover:shadow-[var(--shadow-neo-hover)] transition-all">
+                                            <div>
+                                                <p className="font-black text-xl leading-none">ID: {room.id.substring(0, 8)}</p>
+                                                <p className="font-bold text-gray-700 mt-2">
+                                                    Phase: {room.phase} &bull; Players: {room.players?.length || 0}/8
+                                                </p>
+                                            </div>
+                                            <Button
+                                                variant="primary"
+                                                className="mt-4 sm:mt-0 px-8 py-6 text-lg font-black"
+                                                onClick={() => handleJoinSpecificRoom(room.id)}
+                                                disabled={isJoining}
+                                            >
+                                                JOIN
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </CardContent>
+                        <div className="p-4 border-t-[4px] border-black bg-neo-white">
+                            <Button
+                                variant="outline"
+                                className="w-full text-xl py-6"
+                                onClick={() => setShowJoinModal(false)}
+                            >
+                                Close
+                            </Button>
+                        </div>
+                    </Card>
+                </div>
+            )}
         </div>
     );
 }
+
