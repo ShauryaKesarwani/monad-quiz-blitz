@@ -6,33 +6,29 @@ import { TopBar } from "@/components/TopBar";
 import { ArenaLayout, UIPlayer } from "@/components/ArenaLayout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { WS_URL } from "@/lib/runtime";
+import { useAccount } from "wagmi";
 
-// Basic mocks for now before doing full WS payload matching
-const MOCK_PLAYERS: UIPlayer[] = [
-    { id: "p1", username: "Atokuwu", status: "ALIVE" },
-    { id: "p2", username: "Davizin", status: "ELIMINATED" },
-    { id: "p3", username: "rayman", status: "ALIVE" },
-    { id: "p4", username: "papa", status: "ALIVE" },
-    { id: "p5", username: "Royally", status: "ALIVE" },
-    { id: "p6", username: "voong", status: "ALIVE" },
-    { id: "p7", username: "SORE", status: "ALIVE" },
-    { id: "p8", username: "YOYO", status: "ALIVE" },
-];
+function shortAddress(address: string) {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
 
 export default function MatchPage() {
     const params = useParams();
     const matchId = params.id as string;
     const router = useRouter();
+    const { address, isConnected } = useAccount();
 
     // Local state based on shared MatchState
-    const [players, setPlayers] = useState<UIPlayer[]>(MOCK_PLAYERS);
-    const [currentPlayerId, setCurrentPlayerId] = useState<string>("p1");
-    const [bombTimer, setBombTimer] = useState<number>(10);
-    const [category, setCategory] = useState<string>("Words containing 'ON'");
+    const [players, setPlayers] = useState<UIPlayer[]>([]);
+    const [currentPlayerId, setCurrentPlayerId] = useState<string>("");
+    const [bombTimer, setBombTimer] = useState<number>(0);
+    const [category, setCategory] = useState<string>("Waiting...");
     const [bannedLetters, setBannedLetters] = useState<string[]>([]);
-    const [phase, setPhase] = useState<string>("NORMAL"); // PREDICTION | NORMAL | ENDED
+    const [phase, setPhase] = useState<string>(""); // PREDICTION | NORMAL | ACCELERATION | BLITZ | ENDED
+    const [connectionError, setConnectionError] = useState<string | null>(null);
 
-    const [myPlayerId, setMyPlayerId] = useState<string>("p1"); // Mocking that "I" am Atokuwu
+    const myPlayerId = address ?? "";
     const [answerInput, setAnswerInput] = useState("");
 
     const [savedName, setSavedName] = useState("Player");
@@ -46,12 +42,20 @@ export default function MatchPage() {
     const ws = useRef<WebSocket | null>(null);
 
     useEffect(() => {
-        // Attempt WebSocket connection
+        if (!isConnected || !address) {
+            router.push("/");
+            return;
+        }
+
+        setConnectionError(null);
+
+        // WebSocket connection
         try {
-            ws.current = new WebSocket("ws://localhost:3001/ws");
+            ws.current = new WebSocket(WS_URL);
 
             ws.current.onopen = () => {
-                const name = localStorage.getItem("monadArenaName") || "Player";
+                const nameFromStorage = localStorage.getItem("monadArenaName") || "";
+                const username = nameFromStorage.trim() || shortAddress(address);
                 console.log("WS Connected for match", matchId);
                 // Send JOIN_MATCH event
                 ws.current?.send(JSON.stringify({
@@ -60,8 +64,8 @@ export default function MatchPage() {
                         matchId,
                         player: {
                             id: myPlayerId,
-                            address: "0xMockAddress",
-                            username: name
+                            address,
+                            username,
                         }
                     }
                 }));
@@ -89,96 +93,44 @@ export default function MatchPage() {
             };
 
             ws.current.onerror = (err) => {
-                console.error("WS Error fallback to mock ui", err);
+                console.error("WS Error", err);
+                setConnectionError("WebSocket error — is the backend running on :3001?");
             };
 
         } catch (e) {
-            console.log("No WS server running. Using mock data.");
+            console.error("Failed to open WS", e);
+            setConnectionError("Failed to connect to WebSocket.");
         }
 
         return () => {
             ws.current?.close();
         };
-    }, [matchId, myPlayerId]);
-
-    // Mock Timer decrement if disconnected
-    useEffect(() => {
-        if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
-            const interval = setInterval(() => {
-                setBombTimer((t) => {
-                    const nextTime = Number((t - 0.1).toFixed(1));
-                    if (nextTime <= 0) {
-                        // Time's up! Eliminate current player
-                        setPlayers(prev => {
-                            const updated = prev.map(p =>
-                                p.id === currentPlayerId ? { ...p, status: "ELIMINATED" as const } : p
-                            );
-
-                            // Pass turn to next alive player clockwise
-                            const currentIndex = updated.findIndex(p => p.id === currentPlayerId);
-                            let nextIndex = (currentIndex + 1) % updated.length;
-                            while (updated[nextIndex].status === "ELIMINATED" && nextIndex !== currentIndex) {
-                                nextIndex = (nextIndex + 1) % updated.length;
-                            }
-                            setCurrentPlayerId(updated[nextIndex].id);
-                            return updated;
-                        });
-
-                        // Change category mock
-                        const cats = ["Crypto tokens", "Animals that swim", "Start with letter A"];
-                        setCategory(cats[Math.floor(Math.random() * cats.length)]);
-
-                        return 8; // Reset timer
-                    }
-                    return nextTime;
-                });
-            }, 100);
-            return () => clearInterval(interval);
-        }
-    }, [currentPlayerId]);
+    }, [matchId, myPlayerId, address, isConnected, router]);
 
     const handleSubmitAnswer = (e: React.FormEvent) => {
         e.preventDefault();
         if (!answerInput.trim() || currentPlayerId !== myPlayerId) return;
 
-        if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-            ws.current.send(JSON.stringify({
-                event: "SUBMIT_ANSWER",
-                payload: {
-                    matchId,
-                    playerId: myPlayerId,
-                    answer: answerInput.trim()
-                }
-            }));
-        } else {
-            // Mock progression
-            console.log("Submitted (Mock):", answerInput);
-            setBombTimer(8);
+        if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return;
 
-            // Pass turn clockwise
-            const currentIndex = players.findIndex(p => p.id === currentPlayerId);
-            let nextIndex = (currentIndex + 1) % players.length;
-            while (players[nextIndex].status === "ELIMINATED" && nextIndex !== currentIndex) {
-                nextIndex = (nextIndex + 1) % players.length;
+        ws.current.send(JSON.stringify({
+            event: "SUBMIT_ANSWER",
+            payload: {
+                matchId,
+                playerId: myPlayerId,
+                answer: answerInput.trim()
             }
-            setCurrentPlayerId(players[nextIndex].id);
-        }
+        }));
         setAnswerInput("");
     };
 
     const isMyTurn = myPlayerId === currentPlayerId;
 
     const handlePredict = (type: "winner" | "first_eliminated") => {
-        if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
-            console.log("Mock prediction submitted:", type);
-            // In mock mode, we immediately drop them into Normal
-            setPhase("NORMAL");
-            return;
-        }
+        if (!ws.current || ws.current.readyState !== WebSocket.OPEN) return;
 
-        // Let's just predict a random opponent for now depending on type
-        // In a real game you'd select the player from a dropdown
-        const opponent = players.find(p => p.id !== myPlayerId) || players[0];
+        const opponent = players.find(p => p.id !== myPlayerId) ?? players[0];
+        if (!opponent) return;
 
         ws.current.send(JSON.stringify({
             event: "SUBMIT_PREDICTION",
@@ -186,13 +138,11 @@ export default function MatchPage() {
                 matchId,
                 prediction: {
                     playerId: myPlayerId,
-                    predictedWinner: type === "winner" ? opponent.id : "none",
-                    predictedFirstElimination: type === "first_eliminated" ? opponent.id : "none"
+                    predictedWinner: type === "winner" ? opponent.id : myPlayerId,
+                    predictedFirstElimination: type === "first_eliminated" ? opponent.id : myPlayerId,
                 }
             }
         }));
-        // Note: Actual transition from PREDICTION -> NORMAL is handled by the server (MATCH_UPDATED)
-        console.log("Prediction sent!", type);
     };
 
     return (
@@ -218,12 +168,17 @@ export default function MatchPage() {
 
             <main className="flex-1 flex flex-col items-center p-4 relative overflow-hidden bg-neo-purple bg-neo-dots pb-32">
 
+                {connectionError ? (
+                    <div className="w-full max-w-3xl bg-neo-white border-neo shadow-[var(--shadow-neo)] p-4 mb-6 font-bold">
+                        {connectionError}
+                    </div>
+                ) : null}
+
                 {phase === "PREDICTION" ? (
                     <div className="absolute inset-0 z-50 bg-black/80 flex items-center justify-center p-6">
                         <div className="bg-neo-white border-neo shadow-[var(--shadow-neo-lg)] p-8 max-w-xl w-full text-center">
                             <h2 className="text-4xl font-black mb-4">Prediction Phase</h2>
                             <p className="text-xl font-bold mb-8">Place your stakes on Monad Testnet before the match starts! (Stake: {savedStake} MON)</p>
-                            {/* Mock Prediction Buttons */}
                             <div className="space-y-4">
                                 <Button className="w-full" size="lg" variant="primary" onClick={() => handlePredict("winner")}>
                                     Predict Winner ({savedStake} MON)
@@ -232,9 +187,6 @@ export default function MatchPage() {
                                     Predict First Eliminated ({savedStake} MON)
                                 </Button>
                             </div>
-                            <Button className="mt-8 font-bold" variant="outline" onClick={() => setPhase("NORMAL")}>
-                                [DEV] Skip Prediction Phase
-                            </Button>
                         </div>
                     </div>
                 ) : null}

@@ -89,7 +89,7 @@ function handleJoinMatch(ws: ServerWebSocket, payload: any) {
 
   if (!matchManager) {
     // Create new match
-    matchManager = new MatchManager(GAME_CONFIG, (event, eventPayload) => {
+    matchManager = new MatchManager(matchId, GAME_CONFIG, (event, eventPayload) => {
       broadcastToMatch(matchId, event, eventPayload);
     });
     activeMatches.set(matchId, matchManager);

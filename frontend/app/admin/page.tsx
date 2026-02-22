@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CONTRACT_ADDRESSES, PredictionPoolABI } from "../../lib/contracts";
 import CATEGORIES from "../../../backend/src/data/categories.json";
+import { BACKEND_URL, WS_URL as RUNTIME_WS_URL } from "@/lib/runtime";
 
 // ── ABI helpers ───────────────────────────────────────────────────────────────
 
@@ -61,8 +62,8 @@ type MatchState = {
 
 // ── constants ───────────────────────────────────────────────────────────────
 
-const BACKEND = "http://localhost:3001";
-const WS_URL = "ws://localhost:3001/ws";
+const BACKEND = BACKEND_URL;
+const WS_URL = RUNTIME_WS_URL;
 
 const MONAD_TESTNET = {
   chainId: "0x279f",        // 10143
@@ -810,8 +811,8 @@ function ServicesBar() {
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
       {[
         { label: "Frontend", value: "localhost:3000", note: "this page", color: "text-sky-400" },
-        { label: "Backend REST", value: "localhost:3001", note: "Bun + Hono", color: "text-emerald-400" },
-        { label: "WebSocket", value: "localhost:3001/ws", note: "game engine", color: "text-violet-400" },
+        { label: "Backend REST", value: BACKEND, note: "Bun + Hono", color: "text-emerald-400" },
+        { label: "WebSocket", value: WS_URL, note: "game engine", color: "text-violet-400" },
         { label: "Monad Testnet", value: "chain 10143", note: "0x279f", color: "text-amber-400" },
       ].map((s) => (
         <div key={s.label} className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2">

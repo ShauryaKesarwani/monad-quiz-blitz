@@ -6,10 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Plus, LogIn } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { BACKEND_URL } from "@/lib/runtime";
+import { useAccount } from "wagmi";
 
 export default function HomePage() {
     const router = useRouter();
+    const { isConnected } = useAccount();
     const [roomCode, setRoomCode] = useState("");
     const [isCreating, setIsCreating] = useState(false);
     const [isJoining, setIsJoining] = useState(false);
@@ -18,6 +21,10 @@ export default function HomePage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [displayName, setDisplayName] = useState("");
     const [stakeValue, setStakeValue] = useState("1"); // Default 1 MON
+
+    useEffect(() => {
+        if (!isConnected) router.push("/");
+    }, [isConnected, router]);
 
     const handleCreateRoom = async () => {
         if (!displayName.trim() || !stakeValue.trim()) return;
@@ -28,7 +35,7 @@ export default function HomePage() {
         localStorage.setItem("monadArenaStake", stakeValue.trim());
 
         try {
-            const res = await fetch("http://localhost:3001/api/matches", {
+            const res = await fetch(`${BACKEND_URL}/api/matches`, {
                 method: "POST",
             });
             if (res.ok) {
@@ -41,8 +48,6 @@ export default function HomePage() {
         } catch (err) {
             console.error(err);
             setIsCreating(false);
-            // Fallback in case backend is not running to test UI flow
-            router.push(`/match/mock-room-123`);
         }
     };
 

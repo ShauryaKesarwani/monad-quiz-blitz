@@ -1,4 +1,3 @@
-import { nanoid } from "nanoid";
 import { GamePhase, PlayerStatus, WSEvent } from "../../../shared/types/game";
 import type {
   MatchState,
@@ -29,7 +28,7 @@ export class MatchManager {
   private predictionTimer?: Timer;
   private blitzModeCount: number = 0;
 
-  constructor(config: GameConfig, eventCallback?: MatchEventCallback) {
+  constructor(matchId: string, config: GameConfig, eventCallback?: MatchEventCallback) {
     this.config = config;
     this.eventCallback = eventCallback;
 
@@ -40,7 +39,7 @@ export class MatchManager {
     const initialCategory = this.turnEngine.getRandomCategory();
 
     this.match = {
-      id: nanoid(),
+      id: matchId,
       players: [],
       phase: GamePhase.PREDICTION,
       currentCategory: initialCategory,

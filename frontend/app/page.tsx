@@ -4,19 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bomb, Brain, Clock, Coins } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect } from "react";
+import { useAccount, useConnect } from "wagmi";
 
 export default function LandingPage() {
     const router = useRouter();
-    const [isConnecting, setIsConnecting] = useState(false);
+    const { isConnected } = useAccount();
+    const { connect, connectors, isPending } = useConnect();
+
+    useEffect(() => {
+        if (isConnected) router.push("/home");
+    }, [isConnected, router]);
 
     const handleConnectWallet = () => {
-        setIsConnecting(true);
-        // Mock wallet connection delay
-        setTimeout(() => {
-            // Wagmi connect goes here later
-            router.push("/home");
-        }, 1000);
+        if (connectors.length === 0) return;
+        connect({ connector: connectors[0] });
     };
 
     return (
@@ -71,9 +73,9 @@ export default function LandingPage() {
                     variant="default"
                     className="w-full sm:w-auto text-2xl py-8 px-12 bg-white hover:bg-gray-100"
                     onClick={handleConnectWallet}
-                    disabled={isConnecting}
+                    disabled={isPending || connectors.length === 0}
                 >
-                    {isConnecting ? "Connecting..." : "Connect Wallet"}
+                    {isPending ? "Connecting..." : "Connect Wallet"}
                 </Button>
 
                 <p className="mt-8 font-bold text-gray-800 text-center max-w-sm">
