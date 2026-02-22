@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { Outfit } from "next/font/google";
 import "./globals.css";
 
+const outfit = Outfit({ subsets: ["latin"] });
+
 export const metadata: Metadata = {
-  title: "Category Bomb Arena — Dev Dashboard",
-  description: "Dev test dashboard: backend, WebSocket, wallet, Monad Testnet",
+  title: "Category Bomb Arena",
+  description: "A fast-paced multiplayer elimination word game",
 };
 
 export default function RootLayout({
@@ -13,7 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-zinc-950 text-zinc-100 min-h-screen font-mono antialiased">
+      <body className={`${outfit.className} antialiased min-h-screen flex flex-col`}>
         {children}
       </body>
     </html>

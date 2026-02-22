@@ -1,1 +1,38 @@
 @import "tailwindcss";
+
+@theme {
+  --color-neo-yellow: #FFD500;
+  --color-neo-blue: #4D96FF;
+  --color-neo-green: #6BCB77;
+  --color-neo-red: #FF6B6B;
+  --color-neo-pink: #FF96D5;
+  --color-neo-purple: #9D4EDD;
+  --color-neo-orange: #FFB067;
+  --color-neo-black: #111111;
+  --color-neo-white: #FAFAFA;
+  
+  --shadow-neo: 4px 4px 0px 0px rgba(17, 17, 17, 1);
+  --shadow-neo-hover: 2px 2px 0px 0px rgba(17, 17, 17, 1);
+  --shadow-neo-lg: 8px 8px 0px 0px rgba(17, 17, 17, 1);
+  
+  --font-family-body: 'Outfit', 'Inter', system-ui, sans-serif;
+  --font-family-display: 'Outfit', 'Inter', system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-neo-yellow);
+    color: var(--color-neo-black);
+    font-family: var(--font-family-body);
+    /* Adding subtle grid pattern for typical brutalist gamified look */
+    background-image: radial-gradient(var(--color-neo-black) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: -16px -16px;
+  }
+}
+
+@layer utilities {
+  .border-neo {
+    border: 3px solid var(--color-neo-black);
+  }
+}
