@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bomb, Brain, Clock, Coins } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -32,7 +32,7 @@ export default function LandingPage() {
                         Blitz Quiz
                     </h1>
                     <p className="text-2xl sm:text-3xl font-bold max-w-2xl mx-auto mt-4">
-                        Think fast. Type faster. Don't explode.
+                        Think fast. Type faster. Don&apos;t explode.
                     </p>
                 </div>
 
@@ -53,7 +53,7 @@ export default function LandingPage() {
                             <CardTitle>Survive</CardTitle>
                         </CardHeader>
                         <CardContent className="font-medium text-lg">
-                            You only have a few seconds to answer. If the bomb goes off, you're out.
+                            You only have a few seconds to answer. If the bomb goes off, you&apos;re out.
                         </CardContent>
                     </Card>
 

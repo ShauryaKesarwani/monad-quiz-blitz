@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { WS_URL } from "@/lib/runtime";
 import { useAccount } from "wagmi";
+import type { MatchState } from "../../../../shared/types/game";
 
 function shortAddress(address: string) {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -32,13 +33,10 @@ export default function MatchPage() {
     const myPlayerId = address ?? "";
     const [answerInput, setAnswerInput] = useState("");
 
-    const [savedName, setSavedName] = useState("Player");
-    const [savedStake, setSavedStake] = useState("1");
-
-    useEffect(() => {
-        setSavedName(localStorage.getItem("monadArenaName") || "Player");
-        setSavedStake(localStorage.getItem("monadArenaStake") || "1");
-    }, []);
+    const [savedStake] = useState(() => {
+        if (typeof window === "undefined") return "1";
+        return localStorage.getItem("monadArenaStake") || "1";
+    });
 
     const ws = useRef<WebSocket | null>(null);
 
@@ -48,8 +46,6 @@ export default function MatchPage() {
             return;
         }
 
-        setConnectionError(null);
-
         // WebSocket connection
         try {
             ws.current = new WebSocket(WS_URL);
@@ -57,6 +53,7 @@ export default function MatchPage() {
             ws.current.onopen = () => {
                 const nameFromStorage = localStorage.getItem("monadArenaName") || "";
                 const username = nameFromStorage.trim() || shortAddress(address);
+                setConnectionError(null);
                 console.log("WS Connected for match", matchId);
                 // Send JOIN_MATCH event
                 ws.current?.send(JSON.stringify({
@@ -73,24 +70,24 @@ export default function MatchPage() {
             };
 
             ws.current.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.event === "MATCH_UPDATED") {
-                    const matchData = data.payload.match;
-                    if (matchData) {
-                        setPhase(matchData.phase);
-                        setCategory(matchData.currentCategory?.name || "Waiting...");
-                        setBombTimer(matchData.currentTurnTimer || 0);
-                        setCurrentPlayerId(matchData.currentPlayerId);
-                        setPlayers(matchData.players.map((p: any) => ({
-                            id: p.id,
-                            username: p.username,
-                            status: p.status,
-                        })));
-                        if (matchData.constraints?.bannedLetters) {
-                            setBannedLetters(matchData.constraints.bannedLetters);
-                        }
-                    }
-                }
+                const data = JSON.parse(event.data) as { event?: string; payload?: unknown };
+                if (data.event !== "MATCH_UPDATED") return;
+
+                const matchData = (data.payload as { match?: MatchState } | undefined)?.match;
+                if (!matchData) return;
+
+                setPhase(matchData.phase);
+                setCategory(matchData.currentCategory?.name || "Waiting...");
+                setBombTimer(matchData.currentTurnTimer || 0);
+                setCurrentPlayerId(matchData.currentPlayerId);
+                setPlayers(
+                    matchData.players.map((p) => ({
+                        id: p.id,
+                        username: p.username,
+                        status: p.status,
+                    })),
+                );
+                setBannedLetters(matchData.constraints?.bannedLetters ?? []);
             };
 
             ws.current.onerror = (err) => {
@@ -100,7 +97,9 @@ export default function MatchPage() {
 
         } catch (e) {
             console.error("Failed to open WS", e);
-            setConnectionError("Failed to connect to WebSocket.");
+            setTimeout(() => {
+                setConnectionError("Failed to connect to WebSocket.");
+            }, 0);
         }
 
         return () => {

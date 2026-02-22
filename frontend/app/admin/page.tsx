@@ -462,7 +462,9 @@ function WalletPanel({ onAddress }: { onAddress: (a: string) => void }) {
   const [netStatus, setNetStatus] = useState<Status>("idle");
   const [signStatus, setSignStatus] = useState<Status>("idle");
   const [signResult, setSignResult] = useState<string | null>(null);
-  const [hasEthereum, setHasEthereum] = useState(false);
+  const [hasEthereum] = useState(
+    () => typeof window !== "undefined" && !!window.ethereum,
+  );
 
   const isMonad = chainId === MONAD_TESTNET.chainId;
 
@@ -531,7 +533,6 @@ function WalletPanel({ onAddress }: { onAddress: (a: string) => void }) {
 
   // Sync chain changes + detect wallet on client
   useEffect(() => {
-    setHasEthereum(typeof window !== "undefined" && !!window.ethereum);
     if (!window.ethereum) return;
     const handler = (cid: unknown) => setChainId(cid as string);
     window.ethereum.on("chainChanged", handler);
