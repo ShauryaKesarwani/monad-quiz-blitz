@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CONTRACT_ADDRESSES, PredictionPoolABI } from "../../lib/contracts";
+import CATEGORIES from "../../../backend/src/data/categories.json";
 
 // ── ABI helpers ───────────────────────────────────────────────────────────────
 
@@ -53,6 +54,10 @@ type MatchState = {
   phase: string;
   players: { id: string; address: string; username: string }[];
 };
+
+// ── categories reference ──────────────────────────────────────────────────────
+// Source of truth: backend/src/data/categories.json — edit there to add/remove.
+// Imported directly; no copy needed.
 
 // ── constants ───────────────────────────────────────────────────────────────
 
@@ -800,15 +805,385 @@ function ContractPanel({ walletAddress }: { walletAddress: string }) {
 
 // ── Summary header ────────────────────────────────────────────────────────────
 
+function ServicesBar() {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+      {[
+        { label: "Frontend", value: "localhost:3000", note: "this page", color: "text-sky-400" },
+        { label: "Backend REST", value: "localhost:3001", note: "Bun + Hono", color: "text-emerald-400" },
+        { label: "WebSocket", value: "localhost:3001/ws", note: "game engine", color: "text-violet-400" },
+        { label: "Monad Testnet", value: "chain 10143", note: "0x279f", color: "text-amber-400" },
+      ].map((s) => (
+        <div key={s.label} className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2">
+          <p className={`text-xs font-bold ${s.color}`}>{s.label}</p>
+          <p className="text-xs text-zinc-200 font-mono">{s.value}</p>
+          <p className="text-xs text-zinc-600">{s.note}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Game Simulator ────────────────────────────────────────────────────────────
+// Runs 2 WS connections needed because minPlayers = 2 to start prediction phase.
+
+type LiveMatch = {
+  id: string;
+  phase: string;
+  currentPlayerId: string;
+  currentCategory: { id: string; name: string };
+  players: { id: string; username: string; status: string }[];
+  roundNumber: number;
+  constraints: { bannedLetters: string[] };
+  usedAnswers: string[];
+  eliminationOrder: string[];
+};
+
+function GameSimPanel({ walletAddress }: { walletAddress: string }) {
+  const ws1 = useRef<WebSocket | null>(null);
+  const ws2 = useRef<WebSocket | null>(null);
+  const [matchId, setMatchId] = useState("");
+  const [createStatus, setCreateStatus] = useState<Status>("idle");
+  const [p1Connected, setP1Connected] = useState(false);
+  const [p2Connected, setP2Connected] = useState(false);
+  const [liveMatch, setLiveMatch] = useState<LiveMatch | null>(null);
+  const [log, setLog] = useState<LogEntry[]>([]);
+  const [answer, setAnswer] = useState("");
+  const [answerResult, setAnswerResult] = useState<string | null>(null);
+  const [p1PredWinner, setP1PredWinner] = useState("");
+  const [p1PredElim, setP1PredElim] = useState("");
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  const p1Id = walletAddress || "player-1";
+  const p2Id = "bot-player-2";
+
+  const addLog = useCallback((dir: LogEntry["dir"], msg: string) => {
+    setLog((prev) => [...prev.slice(-149), { ts: ts(), dir, payload: msg }]);
+  }, []);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [log]);
+
+  const createMatch = async () => {
+    setCreateStatus("loading");
+    try {
+      const r = await fetch(`${BACKEND}/api/matches`, { method: "POST" });
+      const d = await r.json() as { matchId: string };
+      setMatchId(d.matchId);
+      setCreateStatus("ok");
+      addLog("sys", `Match created: ${d.matchId}`);
+    } catch (e) {
+      setCreateStatus("error");
+      addLog("sys", `Create failed: ${String(e)}`);
+    }
+  };
+
+  const openWs = (
+    ref: React.MutableRefObject<WebSocket | null>,
+    playerId: string,
+    username: string,
+    setConnected: (v: boolean) => void
+  ) => {
+    if (ref.current) ref.current.close();
+    const ws = new WebSocket(WS_URL);
+    ref.current = ws;
+    ws.onopen = () => {
+      setConnected(true);
+      addLog("sys", `${username} WS open`);
+      ws.send(JSON.stringify({
+        event: "JOIN_MATCH",
+        payload: {
+          matchId,
+          player: { id: playerId, address: playerId, username },
+        },
+      }));
+      addLog("out", `${username} → JOIN_MATCH`);
+    };
+    ws.onmessage = (e) => {
+      const raw = typeof e.data === "string" ? e.data : JSON.stringify(e.data);
+      try {
+        const msg = JSON.parse(raw) as { event: string; payload: { match?: LiveMatch; [k: string]: unknown } };
+        if (msg.event === "MATCH_UPDATED" && msg.payload.match) {
+          setLiveMatch(msg.payload.match as LiveMatch);
+        }
+        addLog("in", `${username} ← ${msg.event}`);
+        if (msg.event === "ANSWER_SUBMITTED") {
+          const p = msg.payload as { playerId?: string; answer?: string; isValid?: boolean };
+          setAnswerResult(`${p.answer} — ${p.isValid ? "valid" : "invalid"}`);
+          setTimeout(() => setAnswerResult(null), 3000);
+        }
+      } catch {
+        addLog("in", raw.slice(0, 120));
+      }
+    };
+    ws.onerror = () => addLog("sys", `${username} WS error`);
+    ws.onclose = () => { setConnected(false); addLog("sys", `${username} WS closed`); };
+  };
+
+  const bothJoin = () => {
+    if (!matchId) return;
+    openWs(ws1, p1Id, walletAddress ? `${walletAddress.slice(0, 6)}` : "Player1", setP1Connected);
+    openWs(ws2, p2Id, "Bot2", setP2Connected);
+  };
+
+  const submitAnswer = () => {
+    if (!answer.trim() || !ws1.current || ws1.current.readyState !== WebSocket.OPEN) return;
+    ws1.current.send(JSON.stringify({
+      event: "SUBMIT_ANSWER",
+      payload: { matchId, playerId: p1Id, answer: answer.trim() },
+    }));
+    addLog("out", `Player1 → SUBMIT_ANSWER: ${answer.trim()}`);
+    setAnswer("");
+  };
+
+  const submitBotAnswer = () => {
+    if (!ws2.current || ws2.current.readyState !== WebSocket.OPEN) return;
+    const catExamples = CATEGORIES.find((c) => c.id === liveMatch?.currentCategory?.id)?.examples ?? ["test"];
+    const used = new Set((liveMatch?.usedAnswers ?? []).map((a) => a.toLowerCase()));
+    const pick = catExamples.find((ex) => !used.has(ex.toLowerCase())) ?? `auto-${Date.now()}`;
+    ws2.current.send(JSON.stringify({
+      event: "SUBMIT_ANSWER",
+      payload: { matchId, playerId: p2Id, answer: pick },
+    }));
+    addLog("out", `Bot2 → SUBMIT_ANSWER: ${pick}`);
+  };
+
+  const submitP1Prediction = () => {
+    if (!ws1.current || ws1.current.readyState !== WebSocket.OPEN) return;
+    ws1.current.send(JSON.stringify({
+      event: "SUBMIT_PREDICTION",
+      payload: {
+        matchId,
+        prediction: {
+          playerId: p1Id,
+          predictedWinner: p1PredWinner || p1Id,
+          predictedFirstElimination: p1PredElim || p2Id,
+        },
+      },
+    }));
+    addLog("out", `Player1 → SUBMIT_PREDICTION`);
+  };
+
+  const isP1Turn = liveMatch?.currentPlayerId === p1Id;
+  const isP2Turn = liveMatch?.currentPlayerId === p2Id;
+  const phase = liveMatch?.phase ?? "—";
+  const phaseColor: Record<string, string> = {
+    PREDICTION: "text-amber-400",
+    NORMAL: "text-emerald-400",
+    ACCELERATION: "text-orange-400",
+    BLITZ: "text-red-400",
+    ENDED: "text-zinc-500",
+  };
+
+  const dirColor: Record<LogEntry["dir"], string> = {
+    in: "text-emerald-400",
+    out: "text-sky-400",
+    sys: "text-yellow-400",
+  };
+  const dirLabel: Record<LogEntry["dir"], string> = { in: "←", out: "→", sys: "·" };
+
+  return (
+    <Card title="Game Simulator — 2 Player Flow" accent="text-orange-400">
+      <p className="text-xs text-zinc-500">
+        Runs two WS connections. <strong className="text-zinc-300">minPlayers = 2</strong> — both must
+        join before prediction phase starts. Player 1 = your wallet. Bot2 is auto-managed.
+      </p>
+
+      {/* step 1: create */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-zinc-600 w-16">Step 1</span>
+        <Btn onClick={createMatch} disabled={createStatus === "loading"} variant="success">
+          POST /api/matches
+        </Btn>
+        <StatusDot s={createStatus} />
+        {matchId && <span className="text-xs text-emerald-300 font-mono break-all">{matchId}</span>}
+      </div>
+
+      {/* step 2: join */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-zinc-600 w-16">Step 2</span>
+        <Btn onClick={bothJoin} disabled={!matchId}>
+          Both Join Match
+        </Btn>
+        <span className="text-xs">
+          <span className={p1Connected ? "text-emerald-400" : "text-zinc-600"}>P1 {p1Connected ? "●" : "○"}</span>
+          {" "}
+          <span className={p2Connected ? "text-emerald-400" : "text-zinc-600"}>Bot2 {p2Connected ? "●" : "○"}</span>
+        </span>
+      </div>
+
+      {/* live state */}
+      {liveMatch && (
+        <div className="rounded-lg border border-zinc-800 p-2 text-xs">
+          <div className="flex gap-4 flex-wrap mb-1">
+            <span>Phase: <strong className={phaseColor[phase] ?? "text-zinc-300"}>{phase}</strong></span>
+            <span>Round: <strong className="text-zinc-300">{liveMatch.roundNumber}</strong></span>
+            <span>Category: <strong className="text-zinc-300">{liveMatch.currentCategory?.name ?? "—"}</strong></span>
+            {liveMatch.constraints.bannedLetters.length > 0 && (
+              <span>Banned: <strong className="text-red-400">{liveMatch.constraints.bannedLetters.join(", ").toUpperCase()}</strong></span>
+            )}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {liveMatch.players.map((p) => (
+              <span
+                key={p.id}
+                className={`px-2 py-0.5 rounded ${
+                  liveMatch.currentPlayerId === p.id
+                    ? "bg-amber-900 text-amber-200"
+                    : p.status === "ELIMINATED"
+                    ? "bg-zinc-800 text-zinc-600 line-through"
+                    : "bg-zinc-800 text-zinc-300"
+                }`}
+              >
+                {p.username} {liveMatch.currentPlayerId === p.id ? "← TURN" : ""}
+              </span>
+            ))}
+          </div>
+          {liveMatch.usedAnswers.length > 0 && (
+            <p className="text-zinc-600 mt-1">Used: {liveMatch.usedAnswers.join(", ")}</p>
+          )}
+        </div>
+      )}
+
+      {/* prediction phase */}
+      {phase === "PREDICTION" && (
+        <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 p-3 flex flex-col gap-2">
+          <p className="text-xs text-amber-400 font-semibold">Prediction Phase — 30s window</p>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+              placeholder={`predicted winner (default: ${p1Id.slice(0, 10)})`}
+              value={p1PredWinner}
+              onChange={(e) => setP1PredWinner(e.target.value)}
+            />
+            <input
+              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+              placeholder={`predicted 1st elim (default: ${p2Id})`}
+              value={p1PredElim}
+              onChange={(e) => setP1PredElim(e.target.value)}
+            />
+          </div>
+          <Btn onClick={submitP1Prediction} disabled={!p1Connected}>
+            Player1 → SUBMIT_PREDICTION
+          </Btn>
+        </div>
+      )}
+
+      {/* answer phase */}
+      {(phase === "NORMAL" || phase === "ACCELERATION" || phase === "BLITZ") && (
+        <div className="flex flex-col gap-2">
+          {isP2Turn && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-400">It&apos;s Bot2&apos;s turn</span>
+              <Btn onClick={submitBotAnswer} variant="default">Auto-answer Bot2</Btn>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              className={`flex-1 bg-zinc-800 border rounded-lg px-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none ${
+                isP1Turn ? "border-emerald-600 focus:border-emerald-400" : "border-zinc-700"
+              }`}
+              placeholder={isP1Turn ? `Your turn — category: ${liveMatch?.currentCategory?.name}` : "Waiting for your turn…"}
+              value={answer}
+              disabled={!isP1Turn}
+              onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitAnswer()}
+            />
+            <Btn onClick={submitAnswer} disabled={!isP1Turn || !answer} variant="success">
+              Answer
+            </Btn>
+          </div>
+          {answerResult && (
+            <p className={`text-xs font-mono ${
+              answerResult.includes("valid") && !answerResult.includes("invalid") ? "text-emerald-400" : "text-red-400"
+            }`}>{answerResult}</p>
+          )}
+        </div>
+      )}
+
+      {phase === "ENDED" && liveMatch && (
+        <div className="rounded-lg border border-zinc-700 bg-zinc-900 p-3 text-xs">
+          <p className="text-zinc-300 font-semibold mb-1">Game Over</p>
+          <p className="text-zinc-500">Elimination order: {liveMatch.eliminationOrder.join(" → ") || "—"}</p>
+        </div>
+      )}
+
+      {/* log */}
+      <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-2 h-36 overflow-y-auto text-xs font-mono">
+        {log.length === 0 && <span className="text-zinc-600">Events appear here.</span>}
+        {log.map((l, i) => (
+          <div key={i} className="leading-5">
+            <span className="text-zinc-600">[{l.ts}]</span>{" "}
+            <span className={dirColor[l.dir]}>{dirLabel[l.dir]}</span>{" "}
+            <span className="text-zinc-300">{l.payload}</span>
+          </div>
+        ))}
+        <div ref={logEndRef} />
+      </div>
+    </Card>
+  );
+}
+
+// ── Categories Reference ──────────────────────────────────────────────────────
+
+function CategoriesPanel() {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  return (
+    <Card title="Categories Reference" accent="text-teal-400">
+      <p className="text-xs text-zinc-500">
+        Source of truth:{" "}
+        <code className="text-zinc-300">backend/src/data/categories.json</code> —
+        add new entries there in the same format. Currently{" "}
+        <strong className="text-zinc-300">{CATEGORIES.length}</strong> categories.
+        Validator accepts any answer ≥ 2 chars that passes banned-letter + duplicate checks.
+      </p>
+      <div className="divide-y divide-zinc-800 rounded-lg border border-zinc-800 overflow-hidden max-h-80 overflow-y-auto">
+        {CATEGORIES.map((cat) => (
+          <div key={cat.id}>
+            <button
+              className="w-full text-left px-3 py-2 hover:bg-zinc-800 transition flex items-center justify-between"
+              onClick={() => setExpanded(expanded === cat.id ? null : cat.id)}
+            >
+              <div>
+                <span className="text-xs text-zinc-200 font-semibold">{cat.name}</span>
+                <span className="text-xs text-zinc-600 ml-2 font-mono">{cat.id}</span>
+              </div>
+              <span className="text-xs text-zinc-600">{expanded === cat.id ? "▲" : "▼"}</span>
+            </button>
+            {expanded === cat.id && (
+              <div className="px-3 pb-3 bg-zinc-950">
+                <p className="text-xs text-zinc-500 mb-1">{cat.description}</p>
+                <div className="flex flex-wrap gap-1">
+                  {cat.examples.map((ex) => (
+                    <span key={ex} className="text-xs bg-zinc-800 text-zinc-300 rounded px-2 py-0.5">{ex}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-zinc-600 border-t border-zinc-800 pt-2">
+        Add a category: append to the JSON array with <code className="text-zinc-400">id</code>,{" "}
+        <code className="text-zinc-400">name</code>, <code className="text-zinc-400">description</code>,{" "}
+        <code className="text-zinc-400">examples</code> fields. Restart the backend after editing.
+      </p>
+    </Card>
+  );
+}
+
+// ── Summary header ────────────────────────────────────────────────────────────
+
 function Header() {
   return (
-    <div className="border-b border-zinc-800 pb-4 mb-2">
+    <div className="border-b border-zinc-800 pb-4 mb-4">
       <h1 className="text-lg font-bold text-zinc-100 tracking-tight">
         Category Bomb Arena{" "}
         <span className="text-zinc-500 font-normal text-sm">— dev dashboard</span>
       </h1>
       <p className="text-xs text-zinc-600 mt-0.5">
-        Test backend REST · WebSocket · wallet · Monad Testnet · deployed contracts
+        backend REST · WebSocket · game simulator · wallet · contracts · categories
       </p>
     </div>
   );
@@ -820,11 +1195,14 @@ export default function DevDashboard() {
   const [walletAddress, setWalletAddress] = useState("");
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8">
+    <main className="max-w-6xl mx-auto px-4 py-8">
       <Header />
+      <ServicesBar />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <BackendPanel />
         <WebSocketPanel />
+        <GameSimPanel walletAddress={walletAddress} />
+        <CategoriesPanel />
         <WalletPanel onAddress={setWalletAddress} />
         <ContractPanel walletAddress={walletAddress} />
       </div>
