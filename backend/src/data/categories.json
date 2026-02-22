@@ -1,0 +1,92 @@
+[
+  {
+    "id": "crypto-tokens",
+    "name": "Crypto Tokens",
+    "description": "Name any cryptocurrency or token",
+    "examples": ["Bitcoin", "Ethereum", "Solana", "Polygon", "Chainlink"]
+  },
+  {
+    "id": "animals-swim",
+    "name": "Animals That Can Swim",
+    "description": "Name any animal that can swim",
+    "examples": ["Dolphin", "Shark", "Penguin", "Otter", "Turtle"]
+  },
+  {
+    "id": "startup-buzzwords",
+    "name": "Startup Buzzwords",
+    "description": "Common startup and business jargon",
+    "examples": ["Synergy", "Disruption", "Pivot", "Scale", "Unicorn"]
+  },
+  {
+    "id": "programming-languages",
+    "name": "Programming Languages",
+    "description": "Any programming or scripting language",
+    "examples": ["Python", "JavaScript", "Rust", "Go", "TypeScript"]
+  },
+  {
+    "id": "backpack-items",
+    "name": "Things in a Backpack",
+    "description": "Items you might find in a backpack",
+    "examples": ["Laptop", "Notebook", "Pen", "Water bottle", "Charger"]
+  },
+  {
+    "id": "countries",
+    "name": "Countries",
+    "description": "Name any country",
+    "examples": ["Japan", "Brazil", "Canada", "Australia", "France"]
+  },
+  {
+    "id": "fruits",
+    "name": "Fruits",
+    "description": "Any type of fruit",
+    "examples": ["Apple", "Banana", "Orange", "Mango", "Strawberry"]
+  },
+  {
+    "id": "web3-protocols",
+    "name": "Web3 Protocols",
+    "description": "Blockchain protocols and standards",
+    "examples": ["ERC20", "Uniswap", "IPFS", "ENS", "Chainlink"]
+  },
+  {
+    "id": "social-media",
+    "name": "Social Media Platforms",
+    "description": "Any social media or messaging platform",
+    "examples": ["Twitter", "Instagram", "Discord", "Telegram", "Farcaster"]
+  },
+  {
+    "id": "colors",
+    "name": "Colors",
+    "description": "Any color name",
+    "examples": ["Red", "Blue", "Green", "Purple", "Yellow"]
+  },
+  {
+    "id": "music-genres",
+    "name": "Music Genres",
+    "description": "Any music genre or style",
+    "examples": ["Rock", "Jazz", "Hip Hop", "Classical", "Electronic"]
+  },
+  {
+    "id": "sports",
+    "name": "Sports",
+    "description": "Any sport or athletic activity",
+    "examples": ["Soccer", "Basketball", "Tennis", "Swimming", "Cricket"]
+  },
+  {
+    "id": "cities",
+    "name": "World Cities",
+    "description": "Name any city in the world",
+    "examples": ["Tokyo", "New York", "London", "Paris", "Mumbai"]
+  },
+  {
+    "id": "brands",
+    "name": "Famous Brands",
+    "description": "Well-known company or product brands",
+    "examples": ["Apple", "Nike", "Google", "Coca-Cola", "Amazon"]
+  },
+  {
+    "id": "movie-genres",
+    "name": "Movie Genres",
+    "description": "Types of movies",
+    "examples": ["Action", "Comedy", "Drama", "Horror", "Science Fiction"]
+  }
+]

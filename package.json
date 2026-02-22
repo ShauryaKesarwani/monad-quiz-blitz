@@ -1,35 +1,24 @@
 {
-  "name": "monad-stake-study",
-  "version": "0.1.0",
+  "name": "category-bomb-arena",
+  "version": "1.0.0",
+  "description": "Category Bomb Arena - Multiplayer word game with Web3 integration",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@napi-rs/wasm-runtime": "^1.1.1",
-    "next": "16.1.6",
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  },
-  "ignoreScripts": [
-    "sharp",
-    "unrs-resolver"
+  "workspaces": [
+    "backend",
+    "frontend"
   ],
-  "trustedDependencies": [
-    "sharp",
-    "unrs-resolver"
-  ]
+  "scripts": {
+    "dev:backend": "cd backend && bun run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:backend": "cd backend && bun run build",
+    "build:frontend": "cd frontend && npm run build"
+  },
+  "keywords": [
+    "game",
+    "web3",
+    "multiplayer",
+    "websocket"
+  ],
+  "author": "",
+  "license": "MIT"
 }
