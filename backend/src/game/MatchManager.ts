@@ -1,20 +1,19 @@
-import { nanoid } from 'nanoid';
+import { nanoid } from "nanoid";
+import { GamePhase, PlayerStatus, WSEvent } from "../../../shared/types/game";
 import type {
   MatchState,
   Player,
-  GamePhase,
   GameConfig,
   Category,
   Prediction,
   Answer,
   GameConstraints,
-  WSEvent,
-  PredictionScore
-} from '../../../shared/types/game';
-import { TurnEngine } from './TurnEngine';
-import { Validator } from './Validator';
-import { Elimination } from './Elimination';
-import { matchStore } from '../state/matches';
+  PredictionScore,
+} from "../../../shared/types/game";
+import { TurnEngine } from "./TurnEngine";
+import { Validator } from "./Validator";
+import { Elimination } from "./Elimination";
+import { matchStore } from "../state/matches";
 
 export interface MatchEventCallback {
   (event: WSEvent, payload: any): void;
@@ -33,19 +32,19 @@ export class MatchManager {
   constructor(config: GameConfig, eventCallback?: MatchEventCallback) {
     this.config = config;
     this.eventCallback = eventCallback;
-    
+
     this.turnEngine = new TurnEngine(config.timerConfig);
     this.validator = new Validator();
 
     // Initialize match state
     const initialCategory = this.turnEngine.getRandomCategory();
-    
+
     this.match = {
       id: nanoid(),
       players: [],
-      phase: 'PREDICTION' as GamePhase,
+      phase: GamePhase.PREDICTION,
       currentCategory: initialCategory,
-      currentPlayerId: '',
+      currentPlayerId: "",
       currentTurnTimer: config.predictionDuration,
       usedAnswers: [],
       constraints: {
@@ -54,7 +53,7 @@ export class MatchManager {
       roundNumber: 0,
       predictions: [],
       eliminationOrder: [],
-      createdAt: Date.now()
+      createdAt: Date.now(),
     };
 
     matchStore.createMatch(this.match);
@@ -63,23 +62,23 @@ export class MatchManager {
   /**
    * Add a player to the match
    */
-  addPlayer(player: Omit<Player, 'status'>): boolean {
+  addPlayer(player: Omit<Player, "status">): boolean {
     if (this.match.players.length >= this.config.maxPlayers) {
       return false;
     }
 
-    if (this.match.phase !== 'PREDICTION') {
+    if (this.match.phase !== GamePhase.PREDICTION) {
       return false;
     }
 
     const newPlayer: Player = {
       ...player,
-      status: 'ALIVE'
+      status: PlayerStatus.ALIVE,
     };
 
     this.match.players.push(newPlayer);
     this.updateMatch();
-    this.emit('PLAYER_JOINED', { player: newPlayer });
+    this.emit(WSEvent.PLAYER_JOINED, { player: newPlayer });
 
     // Start prediction phase if we have enough players
     if (this.match.players.length >= this.config.minPlayers) {
@@ -93,8 +92,8 @@ export class MatchManager {
    * Start the prediction phase
    */
   private startPredictionPhase(): void {
-    this.emit('PREDICTION_PHASE_STARTED', {
-      duration: this.config.predictionDuration
+    this.emit(WSEvent.PREDICTION_PHASE_STARTED, {
+      duration: this.config.predictionDuration,
     });
 
     // Auto-start game after prediction duration
@@ -107,13 +106,13 @@ export class MatchManager {
    * Submit a prediction
    */
   submitPrediction(prediction: Prediction): boolean {
-    if (this.match.phase !== 'PREDICTION') {
+    if (this.match.phase !== GamePhase.PREDICTION) {
       return false;
     }
 
     // Remove existing prediction from this player
     this.match.predictions = this.match.predictions.filter(
-      p => p.playerId !== prediction.playerId
+      (p) => p.playerId !== prediction.playerId,
     );
 
     this.match.predictions.push(prediction);
@@ -130,16 +129,16 @@ export class MatchManager {
       return;
     }
 
-    this.match.phase = 'NORMAL' as GamePhase;
+    this.match.phase = GamePhase.NORMAL;
     this.match.roundNumber = 1;
     this.match.startedAt = Date.now();
-    
+
     // Set first player randomly
     const randomIndex = Math.floor(Math.random() * this.match.players.length);
     this.match.currentPlayerId = this.match.players[randomIndex].id;
 
     this.updateMatch();
-    this.emit('GAME_STARTED', { match: this.match });
+    this.emit(WSEvent.GAME_STARTED, { match: this.match });
 
     this.startTurn();
   }
@@ -148,17 +147,20 @@ export class MatchManager {
    * Start a new turn
    */
   private startTurn(): void {
-    const isBlitzMode = this.match.phase === 'BLITZ';
-    const timer = this.turnEngine.calculateTimer(this.match.roundNumber, isBlitzMode);
-    
+    const isBlitzMode = this.match.phase === GamePhase.BLITZ;
+    const timer = this.turnEngine.calculateTimer(
+      this.match.roundNumber,
+      isBlitzMode,
+    );
+
     this.match.currentTurnTimer = timer;
     this.updateMatch();
 
-    this.emit('TURN_STARTED', {
+    this.emit(WSEvent.TURN_STARTED, {
       playerId: this.match.currentPlayerId,
       timer,
       category: this.match.currentCategory,
-      constraints: this.match.constraints
+      constraints: this.match.constraints,
     });
 
     // Set timeout for turn
@@ -172,21 +174,24 @@ export class MatchManager {
    */
   private handleTurnTimeout(): void {
     const currentPlayer = this.match.players.find(
-      p => p.id === this.match.currentPlayerId
+      (p) => p.id === this.match.currentPlayerId,
     );
 
     if (!currentPlayer) return;
 
-    this.eliminatePlayer(currentPlayer.id, 'Time expired');
+    this.eliminatePlayer(currentPlayer.id, "Time expired");
   }
 
   /**
    * Submit an answer
    */
-  submitAnswer(playerId: string, answer: string): { success: boolean; reason?: string } {
+  submitAnswer(
+    playerId: string,
+    answer: string,
+  ): { success: boolean; reason?: string } {
     // Verify it's the correct player's turn
     if (playerId !== this.match.currentPlayerId) {
-      return { success: false, reason: 'Not your turn' };
+      return { success: false, reason: "Not your turn" };
     }
 
     // Clear turn timer
@@ -198,12 +203,12 @@ export class MatchManager {
     const validation = this.validator.validateAnswer(
       answer,
       this.match.currentCategory,
-      this.match.constraints
+      this.match.constraints,
     );
 
     if (!validation.isValid) {
       // Invalid answer = elimination
-      this.eliminatePlayer(playerId, validation.reason || 'Invalid answer');
+      this.eliminatePlayer(playerId, validation.reason || "Invalid answer");
       return { success: false, reason: validation.reason };
     }
 
@@ -212,10 +217,10 @@ export class MatchManager {
     this.match.usedAnswers.push(answer);
     this.updateMatch();
 
-    this.emit('ANSWER_SUBMITTED', {
+    this.emit(WSEvent.ANSWER_SUBMITTED, {
       playerId,
       answer,
-      isValid: true
+      isValid: true,
     });
 
     // Move to next player
@@ -228,34 +233,39 @@ export class MatchManager {
    * Eliminate a player
    */
   private eliminatePlayer(playerId: string, reason: string): void {
-    const playerIndex = this.match.players.findIndex(p => p.id === playerId);
+    const playerIndex = this.match.players.findIndex((p) => p.id === playerId);
     if (playerIndex === -1) return;
 
     const player = this.match.players[playerIndex];
-    this.match.players[playerIndex] = Elimination.eliminatePlayer(player, Date.now());
+    this.match.players[playerIndex] = Elimination.eliminatePlayer(
+      player,
+      Date.now(),
+    );
     this.match.eliminationOrder.push(playerId);
 
-    this.emit('PLAYER_ELIMINATED', {
+    this.emit(WSEvent.PLAYER_ELIMINATED, {
       playerId,
-      reason
+      reason,
     });
 
     // Switch category on elimination
     const newCategory = this.turnEngine.switchCategory();
     this.match.currentCategory = newCategory;
-    this.emit('CATEGORY_CHANGED', { category: newCategory });
+    this.emit(WSEvent.CATEGORY_CHANGED, { category: newCategory });
 
     // Check if we should add banned letter
-    if (Elimination.shouldActivateBannedLetter(
-      this.match.players,
-      this.config.bannedLetterThreshold,
-      this.match.constraints.bannedLetters
-    )) {
+    if (
+      Elimination.shouldActivateBannedLetter(
+        this.match.players,
+        this.config.bannedLetterThreshold,
+        this.match.constraints.bannedLetters,
+      )
+    ) {
       const bannedLetter = this.turnEngine.getRandomBannedLetter(
-        this.match.constraints.bannedLetters
+        this.match.constraints.bannedLetters,
       );
       this.match.constraints.bannedLetters.push(bannedLetter);
-      this.emit('BANNED_LETTER_ADDED', { letter: bannedLetter });
+      this.emit(WSEvent.BANNED_LETTER_ADDED, { letter: bannedLetter });
     }
 
     // Check for winner
@@ -274,27 +284,28 @@ export class MatchManager {
    */
   private nextTurn(): void {
     // Determine if blitz mode should activate
-    if (this.match.phase === 'ACCELERATION' && 
-        this.turnEngine.shouldActivateBlitz(this.config.blitzProbability)) {
-      
-      this.match.phase = 'BLITZ' as GamePhase;
+    if (
+      this.match.phase === GamePhase.ACCELERATION &&
+      this.turnEngine.shouldActivateBlitz(this.config.blitzProbability)
+    ) {
+      this.match.phase = GamePhase.BLITZ;
       this.blitzModeCount = 3; // 3 turns of blitz
-      this.emit('BLITZ_MODE_ACTIVATED', {});
+      this.emit(WSEvent.BLITZ_MODE_ACTIVATED, {});
     }
 
     // Deactivate blitz mode after countdown
-    if (this.match.phase === 'BLITZ') {
+    if (this.match.phase === GamePhase.BLITZ) {
       this.blitzModeCount--;
       if (this.blitzModeCount <= 0) {
-        this.match.phase = 'ACCELERATION' as GamePhase;
-        this.emit('BLITZ_MODE_DEACTIVATED', {});
+        this.match.phase = GamePhase.ACCELERATION;
+        this.emit(WSEvent.BLITZ_MODE_DEACTIVATED, {});
       }
     }
 
     // Get next player
     const nextPlayer = Elimination.getNextPlayer(
       this.match.players,
-      this.match.currentPlayerId
+      this.match.currentPlayerId,
     );
 
     if (!nextPlayer) {
@@ -307,12 +318,12 @@ export class MatchManager {
     const alivePlayers = Elimination.getAlivePlayers(this.match.players);
     if (alivePlayers[0].id === this.match.currentPlayerId) {
       this.match.roundNumber++;
-      
+
       // Update phase
       this.match.phase = this.turnEngine.determineNextPhase(
         this.match.phase,
         this.match.roundNumber,
-        alivePlayers.length
+        alivePlayers.length,
       ) as GamePhase;
     }
 
@@ -324,11 +335,11 @@ export class MatchManager {
    * End the game
    */
   private endGame(winner: Player): void {
-    this.match.phase = 'ENDED' as GamePhase;
+    this.match.phase = GamePhase.ENDED;
     this.match.endedAt = Date.now();
-    
+
     // Mark winner
-    const winnerIndex = this.match.players.findIndex(p => p.id === winner.id);
+    const winnerIndex = this.match.players.findIndex((p) => p.id === winner.id);
     if (winnerIndex !== -1) {
       this.match.players[winnerIndex] = Elimination.markWinner(winner);
     }
@@ -337,16 +348,16 @@ export class MatchManager {
     const scores = Elimination.calculatePredictionScores(
       this.match.predictions,
       this.match.eliminationOrder,
-      winner.id
+      winner.id,
     );
 
     this.updateMatch();
 
-    this.emit('GAME_ENDED', {
+    this.emit(WSEvent.GAME_ENDED, {
       winner,
       eliminationOrder: this.match.eliminationOrder,
       predictionScores: scores,
-      match: this.match
+      match: this.match,
     });
   }
 
@@ -362,7 +373,7 @@ export class MatchManager {
    */
   private updateMatch(): void {
     matchStore.updateMatch(this.match.id, this.match);
-    this.emit('MATCH_UPDATED', { match: this.match });
+    this.emit(WSEvent.MATCH_UPDATED, { match: this.match });
   }
 
   /**

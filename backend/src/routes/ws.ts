@@ -1,7 +1,8 @@
-import type { ServerWebSocket } from 'bun';
-import type { WSEvent, WSMessage, Player, Prediction } from '../../../shared/types/game';
-import { MatchManager } from '../game/MatchManager';
-import { matchStore } from '../state/matches';
+import type { ServerWebSocket } from "bun";
+import { WSEvent } from "../../../shared/types/game";
+import type { WSMessage, Player, Prediction } from "../../../shared/types/game";
+import { MatchManager } from "../game/MatchManager";
+import { matchStore } from "../state/matches";
 
 // Game configuration
 const GAME_CONFIG = {
@@ -12,10 +13,10 @@ const GAME_CONFIG = {
     initialTime: 10,
     decrementPerRound: 0.5,
     blitzTime: 3,
-    minimumTime: 3
+    minimumTime: 3,
   },
   bannedLetterThreshold: 50, // 50% players remaining
-  blitzProbability: 0.15 // 15% chance per turn
+  blitzProbability: 0.15, // 15% chance per turn
 };
 
 // Store active matches and their managers
@@ -56,24 +57,24 @@ export function handleWSMessage(ws: ServerWebSocket, message: string) {
     const { event, payload } = data;
 
     switch (event) {
-      case 'JOIN_MATCH':
+      case WSEvent.JOIN_MATCH:
         handleJoinMatch(ws, payload);
         break;
 
-      case 'SUBMIT_PREDICTION':
+      case WSEvent.SUBMIT_PREDICTION:
         handleSubmitPrediction(ws, payload);
         break;
 
-      case 'SUBMIT_ANSWER':
+      case WSEvent.SUBMIT_ANSWER:
         handleSubmitAnswer(ws, payload);
         break;
 
       default:
-        sendToClient(ws, 'ERROR', { message: 'Unknown event type' });
+        sendToClient(ws, WSEvent.ERROR, { message: "Unknown event type" });
     }
   } catch (error) {
-    console.error('Error handling WebSocket message:', error);
-    sendToClient(ws, 'ERROR', { message: 'Invalid message format' });
+    console.error("Error handling WebSocket message:", error);
+    sendToClient(ws, WSEvent.ERROR, { message: "Invalid message format" });
   }
 }
 
@@ -85,7 +86,7 @@ function handleJoinMatch(ws: ServerWebSocket, payload: any) {
 
   // Get or create match
   let matchManager = activeMatches.get(matchId);
-  
+
   if (!matchManager) {
     // Create new match
     matchManager = new MatchManager(GAME_CONFIG, (event, eventPayload) => {
@@ -96,16 +97,18 @@ function handleJoinMatch(ws: ServerWebSocket, payload: any) {
   }
 
   // Add player to match
-  const playerData: Omit<Player, 'status'> = {
+  const playerData: Omit<Player, "status"> = {
     id: player.id,
     address: player.address,
-    username: player.username
+    username: player.username,
   };
 
   const success = matchManager.addPlayer(playerData);
 
   if (!success) {
-    sendToClient(ws, 'ERROR', { message: 'Cannot join match (full or already started)' });
+    sendToClient(ws, WSEvent.ERROR, {
+      message: "Cannot join match (full or already started)",
+    });
     return;
   }
 
@@ -114,7 +117,7 @@ function handleJoinMatch(ws: ServerWebSocket, payload: any) {
   (ws as any).matchId = matchId; // Store matchId in WebSocket for cleanup
 
   // Send current match state to player
-  sendToClient(ws, 'MATCH_UPDATED', { match: matchManager.getMatch() });
+  sendToClient(ws, WSEvent.MATCH_UPDATED, { match: matchManager.getMatch() });
 }
 
 /**
@@ -125,20 +128,20 @@ function handleSubmitPrediction(ws: ServerWebSocket, payload: any) {
 
   const matchManager = activeMatches.get(matchId);
   if (!matchManager) {
-    sendToClient(ws, 'ERROR', { message: 'Match not found' });
+    sendToClient(ws, WSEvent.ERROR, { message: "Match not found" });
     return;
   }
 
   const predictionData: Prediction = {
     playerId: prediction.playerId,
     predictedWinner: prediction.predictedWinner,
-    predictedFirstElimination: prediction.predictedFirstElimination
+    predictedFirstElimination: prediction.predictedFirstElimination,
   };
 
   const success = matchManager.submitPrediction(predictionData);
 
   if (!success) {
-    sendToClient(ws, 'ERROR', { message: 'Cannot submit prediction' });
+    sendToClient(ws, WSEvent.ERROR, { message: "Cannot submit prediction" });
     return;
   }
 
@@ -153,14 +156,16 @@ function handleSubmitAnswer(ws: ServerWebSocket, payload: any) {
 
   const matchManager = activeMatches.get(matchId);
   if (!matchManager) {
-    sendToClient(ws, 'ERROR', { message: 'Match not found' });
+    sendToClient(ws, WSEvent.ERROR, { message: "Match not found" });
     return;
   }
 
   const result = matchManager.submitAnswer(playerId, answer);
 
   if (!result.success) {
-    sendToClient(ws, 'ERROR', { message: result.reason || 'Invalid answer' });
+    sendToClient(ws, WSEvent.ERROR, {
+      message: result.reason || "Invalid answer",
+    });
   }
 
   // State updates sent via events from MatchManager
@@ -194,5 +199,5 @@ export function handleWSClose(ws: ServerWebSocket) {
  * Handle WebSocket error
  */
 export function handleWSError(ws: ServerWebSocket, error: Error) {
-  console.error('WebSocket error:', error);
+  console.error("WebSocket error:", error);
 }
